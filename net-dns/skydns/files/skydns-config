@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Variables
+PATH_CONFIGURE_DIR='/etc/smilart';
+
+# Start etcd?
+while ! nc -vz 127.0.0.1 2379; do
+    sleep 1;
+done;
+
+# First start?
+while true; do
+    sleep 1;
+
+    DNS_IP=`cat $PATH_CONFIGURE_DIR/dns-host`;
+    NETWORK_INSTALLED=`cat $PATH_CONFIGURE_DIR/network_installed`;
+
+    if [[ -z "$NETWORK_INSTALLED" || -z "DNS_IP" ]];then
+      echo "ERROR: Files network_installed or dns-host is empty.";
+      continue;
+    fi;
+
+    if ! [ -e /etc/systemd/network/$NETWORK_INSTALLED.network ];then
+      echo "ERROR: Not exist file /etc/systemd/network/$NETWORK_INSTALLED.network.";
+      continue;
+    fi;
+
+    HOST_IP=`cat /etc/systemd/network/$NETWORK_INSTALLED.network | grep 'Address' | sed s#"Address="##g | awk -F '/' ' {print $1} '`;
+
+    # Configure skydns
+    echo "Configuring skydns.";
+    etcdctl set /skydns/config '{"dns_addr":"0.0.0.0:53", "nameservers": ["'$DNS_IP':53"]}';
+    if [ $? -ne 0 ];then
+        echo "ERROR: Skydns is not configured.";
+        continue;
+    fi;
+
+    if [[ -z `etcdctl ls /skydns/local/smilart/$(hostname) 2>&1 | grep 'not found'` ]];then
+        etcdctl updatedir --ttl=1 /skydns/local/smilart/`hostname`;
+        if [[ $? == 0 ]];then
+            echo "Removing 'hostname' key.";
+            sleep 2;
+        else
+            echo "ERROR: Not get key /skydns/local/smilart/'hostname'."
+            continue;
+        fi;
+    fi;
+
+    echo "Adding hostname.";
+    etcdctl set /skydns/local/smilart/`hostname`/$HOST_IP '{"host":"'$HOST_IP'","group":"host"}';
+    if [[ $? == 0 ]];then
+       break
+    fi;
+done;

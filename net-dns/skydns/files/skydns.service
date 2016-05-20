@@ -1,0 +1,11 @@
+[Unit]
+Description=skydns
+
+[Service]
+ExecStartPre=/usr/sbin/skydns-config
+ExecStart=/bin/bash -c "/usr/sbin/skydns -domain local -round-robin=false -rcache-ttl 15 -addr 0.0.0.0:53 -machines http://127.0.0.1:2379"
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

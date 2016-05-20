@@ -1,0 +1,10 @@
+
+Labels in containers:
+
+- com.smilart.repo_base_name    Label is used to set the image docker. It replaces name of the repository docker.
+
+- com.smilart.service.type      Label specifies the type of container.
+
+- com.smilart.service.id        Label specifies the id of container. Only for containers with a "@" of the loaded systemd.
+
+- com.smilart.service.port      Label specifies the port of container.

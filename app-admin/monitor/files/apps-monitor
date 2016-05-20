@@ -1,0 +1,48 @@
+#!/bin/bash 
+
+initial_service_func () {
+
+    SERVICE_TTL='61';
+
+    #Labels from containers
+    COM_SMILART_SERVICE_TYPE=`docker inspect -f '{{index .Config.Labels "com.smilart.service.type"}}' $CONTAINER_ID`;
+    COM_SMILART_SERVICE_ID=`docker inspect -f '{{index .Config.Labels "com.smilart.service.id"}}' $CONTAINER_ID`;
+    COM_SMILART_SERVICE_PORT=`docker inspect -f '{{index .Config.Labels "com.smilart.service.port"}}' $CONTAINER_ID`;
+
+    # "/mongodb" or "/mongodb-id"
+    CONTAINER_NAME=`docker inspect -f '{{.Name}}' $CONTAINER_ID`;
+
+    # "" or "172.17.0.0"
+    CONTAINER_IP=`docker inspect -f '{{index .NetworkSettings "IPAddress"}}' $CONTAINER_ID`;
+
+    if [[ -n `etcdctl ls /skydns/local/smilartservices/$COM_SMILART_SERVICE_TYPE/$(hostname)  2>&1 | grep 'Key not found'` ]]; then
+        echo "Creating domain smilartservices.local in etcd.";
+        #/skydns/local/smilartservices/mongodb/smilart10               "create dir" (if it is key)
+        curl -s http://127.0.0.1:2379/v2/keys/skydns/local/smilartservices/$COM_SMILART_SERVICE_TYPE/$(hostname) -XPUT -d dir=true;
+    fi;
+    if [[ -n $COM_SMILART_SERVICE_ID ]];then
+        #/skydns/local/smilartservices/mongodb/smilart10/mongodb-id    "create key"
+        etcdctl set --ttl $SERVICE_TTL /skydns/local/smilartservices/$COM_SMILART_SERVICE_TYPE/$(hostname)$CONTAINER_NAME '{"host":"'$CONTAINER_IP'","port":'$COM_SMILART_SERVICE_PORT'}';
+
+        #/skydns/local/smilartservices/mongodb/smilart10               "set ttl dir"
+        etcdctl updatedir --ttl $SERVICE_TTL /skydns/local/smilartservices/$COM_SMILART_SERVICE_TYPE/$(hostname);
+
+        echo "Creating service for container key $CONTAINER_NAME .";
+        #/skydns/local/smilart/smilart10/mongodb/id                    "create key","set ttl key"
+        etcdctl set --ttl $SERVICE_TTL /skydns/local/smilart/$(hostname)/$COM_SMILART_SERVICE_TYPE/$COM_SMILART_SERVICE_ID '{"host":"'$CONTAINER_IP'","group":"'$COM_SMILART_SERVICE_TYPE'"}';
+    else
+        echo "Creating dns-name for container key $CONTAINER_NAME .";
+        #/skydns/local/smilartservices/mongodb/smilart10/mongodb       "create key"
+        etcdctl set --ttl $SERVICE_TTL /skydns/local/smilartservices/$COM_SMILART_SERVICE_TYPE/$(hostname)$CONTAINER_NAME '{"host":"'$(hostname).smilart.local'"}';
+    fi;
+}
+
+
+if [[ -n "$@" ]];then
+    CONTAINER_ID=`docker inspect -f '{{.Id}}' $@`;
+    initial_service_func;
+else
+    for CONTAINER_ID in `docker ps -q -f label=com.smilart.service.type`; do
+        initial_service_func;
+    done;
+fi;

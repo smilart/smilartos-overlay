@@ -1,0 +1,19 @@
+# .bashrc for user smilart
+
+if [[ $- =~ "i" && $USER == "smilart" ]]; then
+
+  # Disabling kernel messages
+  if [[ `tty` =~ "tty" ]];then
+    setterm --msg off
+    setterm --powerdown 0
+    setterm --powersave off
+    setterm --blank 0
+  fi;
+
+  if [ ! -e /etc/smilart/first_boot ]; then
+    
+    #First start of the product installation script.
+    distribution-config;
+
+  fi;
+fi;
